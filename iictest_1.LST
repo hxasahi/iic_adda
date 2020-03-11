@@ -1,0 +1,283 @@
+C51 COMPILER V9.01   IICTEST_1                                                             03/01/2020 17:53:02 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE IICTEST_1
+OBJECT MODULE PLACED IN iictest_1.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE iictest_1.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include<reg52.h>
+   2          #include<intrins.h>
+   3          #include<LCD1602.h>
+   4          sbit SDA = P2^0;
+   5          sbit SCL = P2^1;
+   6          sbit RST=P2^4;   //时钟 加上后可以关掉DS1302芯片输出
+   7          sbit dula=P2^6;
+   8          sbit wela=P2^7;
+   9          //bit ADFlag;
+  10          
+  11          void mDelay(unsigned char j)
+  12          {
+  13   1        unsigned int i;
+  14   1        for(;j>0;j--)
+  15   1           {
+  16   2                for(i=0;i<125;i++)
+  17   2                   {;}
+  18   2                }
+  19   1      }
+  20          
+  21          /*
+  22          void Init_Timer1(void)
+  23          {
+  24           TMOD |= 0x10;                       
+  25           TH1=0xff;                    //         Init value  
+  26           TL1=0x00;
+  27           //PT1=1;                 //   优先级    
+  28           EA=1;                    //   interupt enable 
+  29           ET1=1;                   //   enable timer1 interrupt 
+  30           TR1=1;  
+  31            }
+  32          */
+  33          
+  34          void IIC_Start(void)
+  35          
+  36          {
+  37   1          SDA = 1;
+  38   1          SCL = 1;
+  39   1          _nop_();
+  40   1          SDA = 0;
+  41   1          _nop_();
+  42   1          SCL = 0;
+  43   1      }
+  44          
+  45          void IIC_Stop(void)
+  46          {
+  47   1          SDA = 0;
+  48   1          SCL = 1;
+  49   1          _nop_();
+  50   1          SDA = 1;
+  51   1      }
+  52          
+  53          void IIC_Ack(unsigned char ackbit)  //当ackbit为1时，表示单片机对从设备发送来数据的应答
+  54          
+  55          { //当ackbit为0时，表示主机接收了最后一个字节，因此不再应答，结束通信
+C51 COMPILER V9.01   IICTEST_1                                                             03/01/2020 17:53:02 PAGE 2   
+
+  56   1          if(ackbit)
+  57   1          {
+  58   2              SDA = 0;
+  59   2          }
+  60   1          else
+  61   1          {
+  62   2              SDA = 1;
+  63   2          }
+  64   1          _nop_();
+  65   1          SCL = 1;
+  66   1          _nop_();
+  67   1          SCL = 0;
+  68   1          SDA = 1;
+  69   1          _nop_();
+  70   1      }
+  71          
+  72          bit IIC_WaitAck(void)
+  73          {
+  74   1          SDA = 1;
+  75   1          _nop_();
+  76   1          SCL = 1;
+  77   1          _nop_();
+  78   1          if(SDA)  //在SCL为高电平期间，因为接收设备未将SDA拉低，所以默认未接收到应答，结束IIC通信
+  79   1          { 
+  80   2              SCL = 0;
+  81   2              IIC_Stop();
+  82   2              return 0;
+  83   2          }
+  84   1          else  //接收到应答，返回1，继续下一个数据字节的传输
+  85   1          {
+  86   2              SCL = 0;
+  87   2              return 1;
+  88   2          }
+  89   1      
+  90   1      }
+  91          
+  92          void IIC_SendByte(unsigned char byt)
+  93          
+  94          {
+  95   1          unsigned char i;
+  96   1          for(i=0;i<8;i++)
+  97   1          { 
+  98   2              if(byt&0x80)
+  99   2              {
+ 100   3                  SDA = 1;
+ 101   3              }
+ 102   2              else
+ 103   2              {
+ 104   3                  SDA = 0;
+ 105   3              }
+ 106   2              _nop_();
+ 107   2              SCL = 1;
+ 108   2              byt <<= 1;
+ 109   2              _nop_();
+ 110   2              SCL = 0;
+ 111   2          }
+ 112   1      }
+ 113          
+ 114          unsigned int IIC_RecByte(void)
+ 115          {
+ 116   1          unsigned int da;
+ 117   1          unsigned char i;
+C51 COMPILER V9.01   IICTEST_1                                                             03/01/2020 17:53:02 PAGE 3   
+
+ 118   1      
+ 119   1          for(i=0;i<8;i++)
+ 120   1          { 
+ 121   2              SCL = 1;
+ 122   2              _nop_();
+ 123   2              da <<= 1;
+ 124   2              if(SDA)
+ 125   2              da |= 0x01;
+ 126   2              SCL = 0;
+ 127   2              _nop_();
+ 128   2          }
+ 129   1      
+ 130   1          return da;
+ 131   1      }
+ 132          /*
+ 133          void init_pcf8591(void)
+ 134          {
+ 135              IIC_Start();
+ 136          
+ 137              IIC_SendByte(0x90); ? ?//大家可以看看IAP15F2K61S2的原理图，就知道为什么是0x90了
+ 138          
+ 139              IIC_WaitAck();
+ 140              IIC_SendByte(0x03); ?//选择ADC通道3
+ 141              IIC_WaitAck();
+ 142              IIC_Stop();
+ 143          }
+ 144          
+ 145          //接收PCF8591转换过的采样电压值
+ 146          
+ 147          unsigned char adc_pcf8591(void)
+ 148          {
+ 149              unsigned char temp;
+ 150          
+ 151          
+ 152              IIC_Start();
+ 153              IIC_SendByte(0x91);
+ 154              IIC_WaitAck();
+ 155              temp = IIC_RecByte();
+ 156              IIC_Ack(0);
+ 157              IIC_Stop();
+ 158          
+ 159              return temp;
+ 160          
+ 161          }                       */
+ 162          
+ 163          /*
+ 164          void Read_AIN1()
+ 165          {
+ 166                  IIC_Start();            //IIC总线起始信号                                                       
+ 167                  IIC_SendByte(0x90);     //PCF8591的写设备地址           
+ 168                  IIC_WaitAck();          //等待从机应答          
+ 169                  IIC_SendByte(0x01);     //写入PCF8591的控制字节         
+ 170                  IIC_WaitAck();          //等待从机应答                                          
+ 171                  IIC_Stop();             //IIC总线停止信号                                       
+ 172                  
+ 173                  IIC_Start();            //IIC总线起始信号                                                                       
+ 174                  IIC_SendByte(0x91);     //PCF8591的读设备地址           
+ 175                  IIC_WaitAck();          //等待从机应答          
+ 176                  dat = IIC_RecByte();    //读取PCF8591通道3的数据                        
+ 177                  IIC_Ack(0);             //产生非应答信号                                
+ 178                  IIC_Stop();             //IIC总线停止信号                                       
+ 179          }
+C51 COMPILER V9.01   IICTEST_1                                                             03/01/2020 17:53:02 PAGE 4   
+
+ 180            */
+ 181          
+ 182          unsigned int ReadADC()//ReadADC(unsigned char Chl)
+ 183          {
+ 184   1          unsigned int Data;
+ 185   1              IIC_Start();       //Start();        //写入芯片地址
+ 186   1              IIC_SendByte(0x90);      //  Send(AddWr);
+ 187   1              IIC_WaitAck();   //  Ack();
+ 188   1              IIC_SendByte(0x01);        //Send(0x40|Chl);//写入选择的通道，本程序只用单端输入，差分部分需要自行添加
+ 189   1              IIC_WaitAck();                    //Chl的值分别为0、1、2、3，分别代表1-4通道
+ 190   1              IIC_Stop();        //Ack();
+ 191   1              
+ 192   1              IIC_Start();       //Start();
+ 193   1              IIC_SendByte(0x91); //     Send(AddRd);    //读入地址
+ 194   1              IIC_WaitAck();//           Ack();
+ 195   1              Data = IIC_RecByte();    //        Data=Read();    //读数据
+ 196   1              IIC_Ack(0);//      Scl=0;
+ 197   1              IIC_Stop();//      NoAck();
+ 198   1              return Data;       //Stop();
+ 199   1                         //return Data;   //返回值
+ 200   1                }
+ 201                  
+ 202          void clean(void)//数码管锁存函数                   关时钟DS1302
+ 203          {
+ 204   1          dula=1;
+ 205   1          P0=0x00;
+ 206   1          dula=0;
+ 207   1          wela=1;
+ 208   1          P0=0x00;
+ 209   1          wela=0;
+ 210   1          RST=0;              //              关时钟DS1302
+ 211   1      }
+ 212          
+ 213          
+ 214          void main(){
+ 215   1              
+ 216   1          unsigned char ADtemp;                //定义中间变量
+ 217   1          InitLcd();
+ 218   1              clean();
+ 219   1              //mDelay(20);
+ 220   1          //Init_Timer1();
+ 221   1          while(1){
+ 222   2                      ADtemp=ReadADC();                 //对应开发板上的AD1
+ 223   2                      //ADtemp=ADtemp*100;
+ 224   2                      (int)ADtemp=(ADtemp*500.0)/256; //*5一位，*50两位，*500三位
+ 225   2                      //ADtemp=ADtemp*100;
+ 226   2                      TempData[2]=((ADtemp)%100%10);//处理0通道电压显示    -5,经参数调试后发现AD电压范围5V-9.98V,应为0V-5V;
+ 227   2                      TempData[1]=(ADtemp)%100/10;
+ 228   2                      TempData[0]=(ADtemp)/100;
+ 229   2      
+ 230   2                      disp();
+ 231   2              mDelay(40);     //延时用于清晰看出变化
+ 232   2                  //if(ADFlag)      //定时采集输入模拟量      
+ 233   2                      //{
+ 234   2                      //ADFlag=0;    
+ 235   2                      /*ADtemp=ReadADC();               //对应开发板上的AD1
+ 236   2                      TempData[0]=(ADtemp)/50;//处理0通道电压显示
+ 237   2                      TempData[1]=((ADtemp)%50)/10;
+ 238   2                      disp();*/
+ 239   2                      //}
+ 240   2          }
+ 241   1      }
+C51 COMPILER V9.01   IICTEST_1                                                             03/01/2020 17:53:02 PAGE 5   
+
+ 242          /*
+ 243          void Timer1_isr(void) interrupt 3 using 1//定时器1执行数码管动态扫描
+ 244          {
+ 245          
+ 246           static unsigned int j;
+ 247           TH1=0xfb;              //重新赋值
+ 248           TL1=0x00;
+ 249           j++;
+ 250           if(j==200) 
+ 251              {j=0;ADFlag=1;} //定时置位AD采样标志位
+ 252          } */
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    519    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     42       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
